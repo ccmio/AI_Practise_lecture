@@ -7,6 +7,8 @@ high = df['high']
 low = df['low']
 x = np.arange(0, 47)
 
+
+# 先后显示最高价/最低价曲线
 plt.xlabel('day')
 plt.ylabel('price')
 plt.title('Kweichow Moutai')
