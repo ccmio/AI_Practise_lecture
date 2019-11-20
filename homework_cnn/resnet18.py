@@ -8,8 +8,8 @@ from tensorflow.keras import Model, Sequential
 
 np.set_printoptions(threshold=np.inf, linewidth=np.inf)
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
-checkpoint_save_path = './checkpoint/resnet18_cifar10_model.tf'
-weight_path = './checkpoint/resnet18_weights.txt'
+checkpoint_save_path = './checkpoint/resnet18/saved_cifar10_model.tf'
+weight_path = './checkpoint/resnet18/weights.txt'
 load_model = False
 
 cifar10 = tf.keras.datasets.cifar10
@@ -46,12 +46,12 @@ class DecreaseDim(Model):
     def __init__(self, filters, shapes):
         super(DecreaseDim, self).__init__()
         self.filters = filters
-        self.dd = Sequential([Conv2D(input_shape=shapes, filters=self.filters, kernel_size=(1, 1), strides=2, padding='valid', use_bias=False, kernel_initializer=tf.random_normal_initializer()),
-                              BatchNormalization(),
-                              Activation('relu')])
+        self.dd = Sequential([Conv2D(input_shape=shapes, filters=self.filters, kernel_size=(1, 1), strides=2, padding='valid', use_bias=False),
+                              BatchNormalization()])
 
     def call(self, input):
         output = self.dd(input)
+        self.dd.summary()
         return output
 
 
@@ -61,10 +61,10 @@ class ResNetBlock(Model):
         self.filters = filters
         self.strides = strides
         self.residual_path = residual_path
-        self.c1 = Conv2D(filters=self.filters, kernel_size=(3, 3), strides=self.strides, padding='same')
+        self.c1 = Conv2D(filters=self.filters, kernel_size=(3, 3), strides=self.strides, padding='same', use_bias=False)
         self.b1 = BatchNormalization()
         self.a1 = Activation('relu')
-        self.c2 = Conv2D(filters=self.filters, kernel_size=(3, 3), strides=1, padding='same')
+        self.c2 = Conv2D(filters=self.filters, kernel_size=(3, 3), strides=1, padding='same', use_bias=False)
         self.b2 = BatchNormalization()
         self.a2 = Activation('relu')
         if self.residual_path:
@@ -82,6 +82,7 @@ class ResNetBlock(Model):
             output = tf.add(x, shortcut)
         else:
             output = tf.add(x, input)
+        self.summary()
         return output
 
 
@@ -89,7 +90,9 @@ class ResNet(Model):
     def __init__(self, num_blocks):
         super(ResNet, self).__init__()
 
-        self.conv_in = Conv2D(input_shape=(32, 32, 3), filters=64, kernel_size=(7, 7), strides=2, padding='same')
+        self.c_in = Conv2D(input_shape=(32, 32, 3), filters=64, kernel_size=(3, 3), strides=1, padding='same', use_bias=False)
+        self.b_in = BatchNormalization()
+        self.a_in = Activation('relu')
         self.p_in = MaxPool2D(pool_size=(3, 3), strides=2, padding='same')
 
         self.blocks = Sequential()
@@ -102,15 +105,17 @@ class ResNet(Model):
                 else:
                     self.blocks.add(ResNetBlock(filters, shapes))
 
-        self.p_out = GlobalAveragePooling2D()
+        self.d = Dropout(0.2)
         self.f = Flatten()
         self.dense = Dense(10, activation='softmax')
 
     def call(self, input):
-        x = self.conv_in(input)
+        x = self.c_in(input)
+        x = self.b_in(x)
+        x = self.a_in(x)
         x = self.p_in(x)
         x = self.blocks(x)
-        x = self.p_out(x)
+        x = self.d(x)
         x = self.f(x)
         output = self.dense(x)
         return output
@@ -120,7 +125,8 @@ model = ResNet(4)
 model.compile(optimizer='adam',
               loss='sparse_categorical_crossentropy',
               metrics=['sparse_categorical_accuracy'])
-
+model.build((50000, 32, 32, 3))
+model.summary()
 '''
 *********************断点续训********************
 '''
